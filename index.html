@@ -3,357 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Niimblue Web - Label Designer</title>
+    <title>NiimBlue Web Printer</title>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fabric.js for the canvas engine -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <!-- JsBarcode for barcode generation -->
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <!-- QRCode.js for QR codes -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- NiimBlueLib -->
+    <script src="https://unpkg.com/@mmote/niimbluelib@latest/dist/umd/niimbluelib.min.js"></script>
     <style>
-        .canvas-container {
-            margin: 0 auto;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            background-color: white;
-        }
-        .checkerboard {
-            background-image: linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
-                              linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
-                              linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
-                              linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains+Mono', monospace; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-900">
+<body class="bg-slate-50 text-slate-900 min-h-screen p-4 md:p-8">
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 11h10m-10 4h5" />
-            </svg>
-            <h1 class="text-xl font-bold tracking-tight">Niimblue Web</h1>
-        </div>
-        <div class="flex gap-2">
-            <button id="btnConnect" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
-                <span id="statusDot" class="w-2 h-2 rounded-full bg-red-400"></span>
-                Connect Printer
-            </button>
-        </div>
-    </header>
-
-    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <!-- Sidebar Controls -->
-        <aside class="w-full md:w-72 bg-white border-r border-slate-200 p-4 flex flex-col gap-6 overflow-y-auto">
-            
-            <!-- Label Settings -->
-            <section>
-                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Label Size (mm)</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="text-[10px] text-slate-400">Width</label>
-                        <input type="number" id="labelWidth" value="40" class="w-full border border-slate-200 rounded p-1 text-sm">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-slate-400">Height</label>
-                        <input type="number" id="labelHeight" value="30" class="w-full border border-slate-200 rounded p-1 text-sm">
-                    </div>
+    <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-blue-600 rounded-xl text-white">
+                    <i data-lucide="printer" size="28"></i>
                 </div>
-                <button id="btnUpdateSize" class="w-full mt-2 text-xs bg-slate-100 hover:bg-slate-200 py-1 rounded transition-colors">Apply Size</button>
-            </section>
-
-            <!-- Tools -->
-            <section>
-                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Add Elements</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="addText()" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-xl hover:bg-blue-50 transition-all group">
-                        <span class="text-xl group-hover:scale-110 transition-transform">T</span>
-                        <span class="text-[10px] mt-1">Text</span>
-                    </button>
-                    <button onclick="addBarcode()" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-xl hover:bg-blue-50 transition-all group">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5h2v14H3V5zm4 0h1v14H7V5zm3 0h3v14h-3V5zm5 0h1v14h-1V5zm3 0h2v14h-2V5z"/></svg>
-                        <span class="text-[10px] mt-1">Barcode</span>
-                    </button>
-                    <button onclick="addQR()" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-xl hover:bg-blue-50 transition-all group">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm12 0h6v6h-6V3zM3 15h6v6H3v-6zm12 0h6v6h-6v-6z"/></svg>
-                        <span class="text-[10px] mt-1">QR Code</span>
-                    </button>
-                    <button onclick="addRect()" class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-xl hover:bg-blue-50 transition-all group">
-                        <div class="w-5 h-4 border-2 border-slate-800 rounded-sm"></div>
-                        <span class="text-[10px] mt-1">Rect</span>
-                    </button>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">NiimBlue Web</h1>
+                    <p class="text-slate-500 text-sm">Standalone Bluetooth Client</p>
                 </div>
-            </section>
+            </div>
 
-            <!-- Active Object Settings -->
-            <section id="objectSettings" class="hidden">
-                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 border-t pt-4">Properties</h2>
-                <div class="flex flex-col gap-3">
-                    <div id="textOnlyProps">
-                        <label class="text-[10px] text-slate-400">Content</label>
-                        <textarea id="propText" class="w-full border border-slate-200 rounded p-2 text-sm" rows="2"></textarea>
-                    </div>
-                    <div>
-                        <button id="btnDelete" class="w-full bg-red-50 text-red-600 hover:bg-red-100 py-2 rounded text-xs font-medium transition-colors">Delete Selected</button>
-                    </div>
-                </div>
-            </section>
-
-            <div class="mt-auto">
-                <button id="btnPrint" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                    PRINT LABEL
+            <div id="connection-controls" class="flex items-center gap-3">
+                <button id="btn-connect" class="flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg active:scale-95 transition-all">
+                    <i data-lucide="bluetooth" size="18"></i>
+                    <span>Connect Printer</span>
+                </button>
+                <button id="btn-disconnect" class="hidden flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-all active:scale-95 border border-red-100">
+                    <i data-lucide="bluetooth-off" size="18"></i>
+                    Disconnect
                 </button>
             </div>
-        </aside>
+        </header>
 
-        <!-- Canvas Area -->
-        <section class="flex-1 p-4 md:p-12 checkerboard overflow-auto flex items-center justify-center">
-            <div id="canvas-wrapper" class="relative">
-                <canvas id="labelCanvas"></canvas>
-            </div>
-        </section>
-    </main>
+        <!-- Error Box -->
+        <div id="error-banner" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-3">
+            <i data-lucide="alert-circle" size="20"></i>
+            <p id="error-message" class="text-sm font-medium"></p>
+        </div>
 
-    <!-- UI Overlay for Printer Status -->
-    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg opacity-0 transition-opacity pointer-events-none text-sm z-50">
-        Message goes here
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Status Panel -->
+            <section class="md:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i data-lucide="activity" size="16"></i> Device Status
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-500">Connection</span>
+                            <span id="status-connection" class="flex items-center gap-1.5 font-medium text-slate-400">
+                                <div class="w-2 h-2 rounded-full bg-slate-300"></div>
+                                Offline
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-500">Model</span>
+                            <span id="status-model" class="font-mono font-medium text-slate-400">---</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-500">Battery</span>
+                            <div class="flex items-center gap-2">
+                                <span id="status-battery" class="font-medium text-slate-400">---</span>
+                                <i id="icon-battery" data-lucide="battery" size="18" class="text-slate-400"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="btn-refresh" disabled class="w-full mt-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50">
+                        Refresh Status
+                    </button>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i data-lucide="zap" size="16"></i> Quick Actions
+                    </h2>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button id="btn-heartbeat" disabled class="flex items-center justify-center gap-2 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-all">
+                            <i data-lucide="activity" size="18" class="text-blue-500"></i>
+                            <span class="text-sm font-medium">Send Heartbeat</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Console -->
+            <section class="md:col-span-2 bg-slate-900 rounded-2xl shadow-xl flex flex-col min-h-[400px] overflow-hidden">
+                <div class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="flex gap-1.5">
+                            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+                            <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+                        </div>
+                        <span class="text-xs font-mono text-slate-400 ml-2">Communication Logs</span>
+                    </div>
+                    <button id="btn-clear-logs" class="text-[10px] uppercase tracking-widest font-bold text-slate-500 hover:text-white">Clear</button>
+                </div>
+                
+                <div id="log-container" class="flex-1 p-4 font-mono text-[11px] overflow-y-auto space-y-1 scrollbar-hide bg-slate-950">
+                    <div class="text-slate-600 italic">Console initialized...</div>
+                </div>
+                
+                <div class="p-3 bg-slate-800 text-[10px] text-slate-500 text-center uppercase tracking-tighter">
+                    Connected via Web Bluetooth API
+                </div>
+            </section>
+        </div>
+
+        <footer class="text-center py-6 text-slate-400 text-sm">
+            <p>Built with NiimBlueLib &bull; Works offline once loaded</p>
+        </footer>
     </div>
 
     <script>
-        // --- CONSTANTS & STATE ---
-        const PX_PER_MM = 8; // standard for thermal previews
-        let canvas;
-        let printerDevice = null;
-        let printerCharacteristic = null;
+        // DOM Elements
+        const btnConnect = document.getElementById('btn-connect');
+        const btnDisconnect = document.getElementById('btn-disconnect');
+        const btnRefresh = document.getElementById('btn-refresh');
+        const btnHeartbeat = document.getElementById('btn-heartbeat');
+        const btnClearLogs = document.getElementById('btn-clear-logs');
+        const logContainer = document.getElementById('log-container');
+        const errorBanner = document.getElementById('error-banner');
+        const errorMessage = document.getElementById('error-message');
+        
+        const statusConnection = document.getElementById('status-connection');
+        const statusModel = document.getElementById('status-model');
+        const statusBattery = document.getElementById('status-battery');
 
-        // --- INITIALIZATION ---
-        window.onload = () => {
-            initCanvas();
-            setupEventListeners();
-        };
+        let client = null;
 
-        function initCanvas() {
-            const width = parseInt(document.getElementById('labelWidth').value) * PX_PER_MM;
-            const height = parseInt(document.getElementById('labelHeight').value) * PX_PER_MM;
+        // Initialize Icons
+        lucide.createIcons();
 
-            canvas = new fabric.Canvas('labelCanvas', {
-                width: width,
-                height: height,
-                backgroundColor: 'white'
-            });
-
-            // Handle object selection for properties panel
-            canvas.on('selection:created', (e) => showProperties(e.selected[0]));
-            canvas.on('selection:updated', (e) => showProperties(e.selected[0]));
-            canvas.on('selection:cleared', hideProperties);
-
-            // Responsive wrapping if needed
-            window.addEventListener('resize', () => canvas.calcOffset());
-        }
-
-        function setupEventListeners() {
-            document.getElementById('btnUpdateSize').addEventListener('click', updateLabelSize);
-            document.getElementById('btnConnect').addEventListener('click', connectToPrinter);
-            document.getElementById('btnPrint').addEventListener('click', handlePrint);
-            document.getElementById('btnDelete').addEventListener('click', deleteSelected);
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `flex gap-3 leading-relaxed border-b border-slate-800/50 pb-1`;
             
-            document.getElementById('propText').addEventListener('input', (e) => {
-                const obj = canvas.getActiveObject();
-                if (obj && (obj.type === 'text' || obj.type === 'textbox' || obj._qrSource)) {
-                    if(obj._qrSource) {
-                        updateQRCode(obj, e.target.value);
-                    } else {
-                        obj.set('text', e.target.value);
-                    }
-                    canvas.renderAll();
-                }
-            });
+            let colorClass = 'text-blue-300';
+            if (type === 'error') colorClass = 'text-red-400';
+            if (type === 'success') colorClass = 'text-emerald-400';
+
+            logEntry.innerHTML = `
+                <span class="text-slate-500 shrink-0">[${timestamp}]</span>
+                <span class="${colorClass} break-all">${message}</span>
+            `;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        // --- CANVAS TOOLS ---
-        function updateLabelSize() {
-            const w = parseInt(document.getElementById('labelWidth').value) * PX_PER_MM;
-            const h = parseInt(document.getElementById('labelHeight').value) * PX_PER_MM;
-            canvas.setDimensions({ width: w, height: h });
-            canvas.renderAll();
-        }
-
-        function addText() {
-            const text = new fabric.Textbox('New Text', {
-                left: 10,
-                top: 10,
-                fontSize: 24,
-                fontFamily: 'sans-serif',
-                width: 150
-            });
-            canvas.add(text);
-            canvas.setActiveObject(text);
-        }
-
-        function addRect() {
-            const rect = new fabric.Rect({
-                left: 20,
-                top: 20,
-                fill: 'transparent',
-                stroke: 'black',
-                strokeWidth: 2,
-                width: 100,
-                height: 50
-            });
-            canvas.add(rect);
-            canvas.setActiveObject(rect);
-        }
-
-        function addBarcode() {
-            // We use a temporary canvas to generate the barcode as an image
-            const tempCanvas = document.createElement('canvas');
-            try {
-                JsBarcode(tempCanvas, "12345678", { format: "CODE128", displayValue: true });
-                fabric.Image.fromURL(tempCanvas.toDataURL(), (img) => {
-                    img.set({ left: 10, top: 10, scaleX: 0.5, scaleY: 0.5 });
-                    canvas.add(img);
-                    canvas.setActiveObject(img);
-                });
-            } catch (e) {
-                showToast("Barcode error: " + e.message);
-            }
-        }
-
-        function addQR() {
-            const div = document.createElement('div');
-            new QRCode(div, { text: "https://niimblue", width: 128, height: 128 });
-            const imgData = div.querySelector('canvas').toDataURL();
-            
-            fabric.Image.fromURL(imgData, (img) => {
-                img.set({ left: 10, top: 10, scaleX: 0.8, scaleY: 0.8 });
-                img._qrSource = "https://niimblue"; // Custom prop to track content
-                canvas.add(img);
-                canvas.setActiveObject(img);
-            });
-        }
-
-        function updateQRCode(obj, text) {
-            const div = document.createElement('div');
-            new QRCode(div, { text: text, width: 128, height: 128 });
-            obj.setSrc(div.querySelector('canvas').toDataURL(), () => canvas.renderAll());
-            obj._qrSource = text;
-        }
-
-        function deleteSelected() {
-            const active = canvas.getActiveObjects();
-            if (active) {
-                canvas.discardActiveObject();
-                active.forEach(obj => canvas.remove(obj));
-            }
-        }
-
-        function showProperties(obj) {
-            const panel = document.getElementById('objectSettings');
-            const textInput = document.getElementById('propText');
-            panel.classList.remove('hidden');
-            
-            if (obj.type === 'textbox' || obj.type === 'text') {
-                textInput.value = obj.text;
-            } else if (obj._qrSource) {
-                textInput.value = obj._qrSource;
-            } else {
-                textInput.value = "[Selected Object]";
-            }
-        }
-
-        function hideProperties() {
-            document.getElementById('objectSettings').classList.add('hidden');
-        }
-
-        // --- PRINTER CONNECTIVITY (WEB BLUETOOTH) ---
-        async function connectToPrinter() {
-            try {
-                showToast("Searching for Niimbot...");
-                printerDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'B21' }, { namePrefix: 'D11' }, { namePrefix: 'NIIMBOT' }],
-                    optionalServices: ['0000ff00-0000-1000-8000-00805f9b34fb'] // Common Niimbot service
-                });
-
-                const server = await printerDevice.gatt.connect();
-                const service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
-                const characteristics = await service.getCharacteristics();
-                
-                // Usually the first characteristic that supports write
-                printerCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
-
-                if (printerCharacteristic) {
-                    document.getElementById('statusDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
-                    document.getElementById('btnConnect').innerText = "Connected: " + printerDevice.name;
-                    showToast("Printer Connected!");
-                }
-            } catch (error) {
-                console.error(error);
-                showToast("Connection failed: " + error.message);
-            }
-        }
-
-        // --- PRINTING LOGIC ---
-        function handlePrint() {
-            if (!printerCharacteristic) {
-                // For demo purposes when no printer is available, we'll just download the image
-                showToast("No printer connected. Downloading preview instead.");
-                downloadPreview();
+        function showError(msg) {
+            if (!msg) {
+                errorBanner.classList.add('hidden');
                 return;
             }
-
-            // Simplified workflow for Niimbot:
-            // 1. Get raw pixels from canvas
-            // 2. Convert to Black and White (Thermal)
-            // 3. Packetize using Niimbot Protocol (requires specific binary framing)
-            // 4. Send via Bluetooth
-            
-            printToThermal();
+            errorBanner.classList.remove('hidden');
+            errorMessage.textContent = msg;
         }
 
-        function downloadPreview() {
-            const dataURL = canvas.toDataURL({ format: 'png', multiplier: 2 });
-            const link = document.createElement('a');
-            link.download = 'label-preview.png';
-            link.href = dataURL;
-            link.click();
-        }
+        function updateUI(connected) {
+            btnConnect.classList.toggle('hidden', connected);
+            btnDisconnect.classList.toggle('hidden', !connected);
+            btnRefresh.disabled = !connected;
+            btnHeartbeat.disabled = !connected;
 
-        async function printToThermal() {
-            // Niimbot protocol is binary-heavy. Here is a conceptual implementation
-            // based on the Niimblue project structure
-            
-            showToast("Preparing print data...");
-            
-            // 1. Get Image Data
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            
-            // 2. Convert to monochrome bitstream (8 pixels per byte)
-            // This is a simplified placeholder for the actual compression/packetization
-            const bytes = [];
-            for (let i = 0; i < imgData.data.length; i += 4) {
-                const avg = (imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3;
-                bytes.push(avg < 128 ? 1 : 0); // 1 = Black, 0 = White
+            if (connected) {
+                statusConnection.innerHTML = `<i data-lucide="check-circle-2" size="16"></i> Online`;
+                statusConnection.className = "flex items-center gap-1.5 font-medium text-green-600";
+            } else {
+                statusConnection.innerHTML = `<div class="w-2 h-2 rounded-full bg-slate-300"></div> Offline`;
+                statusConnection.className = "flex items-center gap-1.5 font-medium text-slate-400";
+                statusModel.textContent = "---";
+                statusBattery.textContent = "---";
             }
-
-            showToast("Printing " + canvas.width + "x" + canvas.height + "...");
-            
-            // Real implementation would loop through rows, calculate checksums,
-            // and call printerCharacteristic.writeValue() for each packet.
-            // Packet structure: [0x55, 0x55, type, length, ...data, checksum, 0xAA, 0xAA]
+            lucide.createIcons();
         }
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.classList.remove('opacity-0');
-            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+        async function init() {
+            if (window.niimbluelib) {
+                client = new window.niimbluelib.NiimbotBluetoothClient();
+                addLog("NiimBlueLib ready.");
+            } else {
+                showError("Library failed to load.");
+            }
         }
 
+        btnConnect.onclick = async () => {
+            showError(null);
+            addLog("Requesting Bluetooth device...");
+            try {
+                await client.connect();
+                updateUI(true);
+                addLog("Connected to printer!", "success");
+
+                const info = await client.getPrinterInfo();
+                statusModel.textContent = info.modelId || "Unknown";
+                addLog(`Printer ID: ${info.modelId}`, "success");
+
+                const battery = await client.getBatteryLevel();
+                statusBattery.textContent = `${battery}%`;
+                addLog(`Battery: ${battery}%`);
+            } catch (err) {
+                addLog(err.message, "error");
+                showError(err.message);
+            }
+        };
+
+        btnDisconnect.onclick = async () => {
+            await client.disconnect();
+            updateUI(false);
+            addLog("Disconnected.");
+        };
+
+        btnHeartbeat.onclick = async () => {
+            try {
+                const res = await client.heartbeat();
+                addLog(`Heartbeat sent: ${res ? 'Success' : 'Fail'}`, res ? 'success' : 'error');
+            } catch (err) {
+                addLog(err.message, "error");
+            }
+        };
+
+        btnRefresh.onclick = async () => {
+            try {
+                const battery = await client.getBatteryLevel();
+                statusBattery.textContent = `${battery}%`;
+                addLog(`Status updated. Battery: ${battery}%`);
+            } catch (err) {
+                addLog(err.message, "error");
+            }
+        };
+
+        btnClearLogs.onclick = () => {
+            logContainer.innerHTML = '';
+            addLog("Logs cleared.");
+        };
+
+        window.onload = init;
     </script>
 </body>
 </html>
