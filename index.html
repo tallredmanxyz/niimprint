@@ -109,8 +109,8 @@
 
     <script>
         /**
-         * Updated Niimbot connection logic.
-         * The library niim.blue uses broader filtering and 16-bit UUID matching.
+         * Enhanced Niimbot connection logic.
+         * Based on niim.blue connection strategies for B-series printers.
          */
         const NIIM_SERVICE_UUID = '0000fee7-0000-1000-8000-00805f9b34fb';
         const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb'; // Notify
@@ -164,18 +164,13 @@
             try {
                 log('Searching for Niimbot devices...');
                 
-                /**
-                 * NiimBlue library strategy:
-                 * 1. Request devices with broad name prefixes.
-                 * 2. Include the 16-bit shorthand (0xfee7) in optionalServices.
-                 * 3. Do not filter by service in the initial 'filters' to avoid strict matches.
-                 */
+                // Strategy: Use broad prefixes and add 16-bit shorthand to optionalServices
                 device = await navigator.bluetooth.requestDevice({
                     filters: [
                         { namePrefix: 'B' }, 
                         { namePrefix: 'D' }, 
                         { namePrefix: 'NIIMBOT' },
-                        { namePrefix: 'JC' } // Some older models
+                        { namePrefix: 'JC' }
                     ],
                     optionalServices: [NIIM_SERVICE_UUID, 0xFEE7]
                 });
@@ -186,11 +181,11 @@
                 log('Discovering Primary Service...');
                 let service;
                 try {
-                    // Try 128-bit UUID first
+                    // Try full 128-bit UUID first
                     service = await server.getPrimaryService(NIIM_SERVICE_UUID);
                 } catch (e) {
-                    log('128-bit UUID failed, trying 16-bit shorthand...');
-                    // Fallback to 16-bit shorthand
+                    log('Full UUID not found, trying shorthand 0xFEE7...');
+                    // Fallback to 16-bit shorthand used by many B-series models
                     service = await server.getPrimaryService(0xFEE7);
                 }
 
@@ -264,20 +259,15 @@
         const startPrint = async () => {
             const text = printTextInput.value;
             try {
-                // Initialize job
-                await sendCommand(0x01, [0x01]); 
-                // Set Density
-                await sendCommand(0x02, [0x03]); 
-                // Clear
-                await sendCommand(0x04, [0x01]);
+                await sendCommand(0x01, [0x01]); // Job Start
+                await sendCommand(0x02, [0x03]); // Density
+                await sendCommand(0x04, [0x01]); // Clear
                 
-                // Text data
                 const textBytes = Array.from(new TextEncoder().encode(text));
-                await sendCommand(0x10, textBytes); 
+                await sendCommand(0x10, textBytes); // Raw Text
 
-                // Commit
-                await sendCommand(0x03, [0x01]); 
-                await sendCommand(0x01, [0x02]); 
+                await sendCommand(0x03, [0x01]); // Commit Page
+                await sendCommand(0x01, [0x02]); // Job End
                 
                 log('Print sequence sent.');
             } catch (err) {
