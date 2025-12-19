@@ -3,192 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Niimbot Print Terminal</title>
+    <title>NiimBlue Web Printer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        // Using a direct bundle URL for better compatibility with GitHub Pages
-        import { NiimbotBluetoothClient, LabelDrawer } from 'https://cdn.jsdelivr.net/npm/niimbluelib@1.1.0/+esm';
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900">
 
-        let client = null;
-        let isConnecting = false;
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800">NiimBlue <span class="text-blue-600">Web</span></h1>
+                <p class="text-slate-500">Connect and print to Niimbot Bluetooth printers</p>
+            </div>
+            <div id="connection-status" class="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200">
+                <span id="status-dot" class="status-dot bg-slate-300"></span>
+                <span id="status-text" class="text-sm font-medium">Disconnected</span>
+                <button id="connect-btn" class="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1 px-3 rounded transition-colors">
+                    CONNECT
+                </button>
+            </div>
+        </header>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left Column: Controls -->
+            <div class="space-y-6">
+                <!-- Label Configuration -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                        Label Settings
+                    </h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Width (mm)</label>
+                            <input type="number" id="label-width" value="40" class="w-full border-slate-200 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Height (mm)</label>
+                            <input type="number" id="label-height" value="30" class="w-full border-slate-200 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Content -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        Print Content
+                    </h2>
+                    <textarea id="print-text" placeholder="Enter text to print..." class="w-full h-24 border-slate-200 border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4">Hello NiimBlue!</textarea>
+                    
+                    <div class="flex flex-col gap-2">
+                        <button id="print-btn" disabled class="w-full bg-slate-200 text-slate-400 font-bold py-3 rounded-xl cursor-not-allowed transition-all active:scale-95">
+                            PRINT LABEL
+                        </button>
+                        <button id="info-btn" disabled class="w-full bg-slate-100 text-slate-600 font-bold py-2 rounded-xl hover:bg-slate-200 disabled:opacity-50">
+                            GET PRINTER INFO
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Log & Visualizer -->
+            <div class="space-y-6">
+                <!-- Preview Canvas -->
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 class="text-lg font-semibold mb-4">Visual Preview</h2>
+                    <div class="bg-slate-100 rounded-lg flex items-center justify-center p-4 aspect-square relative overflow-hidden">
+                        <div id="label-preview-box" class="bg-white shadow-md flex items-center justify-center text-center p-2" style="width: 160px; height: 120px;">
+                            <span id="preview-text-display" class="text-sm break-words overflow-hidden">Hello NiimBlue!</span>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-2 text-center uppercase tracking-wider font-bold">Preview is approximate</p>
+                </section>
+
+                <!-- Log -->
+                <section class="bg-slate-900 rounded-2xl p-4 shadow-xl">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">System Log</h2>
+                        <button id="clear-log" class="text-[10px] text-slate-500 hover:text-white uppercase font-bold">Clear</button>
+                    </div>
+                    <div id="log" class="log-container h-48 overflow-y-auto text-xs font-mono text-green-400 space-y-1">
+                        <div>> Ready to connect...</div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <footer class="mt-12 text-center text-slate-400 text-sm">
+            <p>Requires Chrome/Edge and Bluetooth hardware.</p>
+        </footer>
+    </div>
+
+    <!-- UI Interaction Overlay for Errors -->
+    <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl opacity-0 pointer-events-none transition-all duration-300">
+        Error Message
+    </div>
+
+    <script>
+        /**
+         * Simple implementation of the Niimbot communication protocol 
+         * based on niimbluelib documentation.
+         */
+        const NIIM_SERVICE_UUID = '0000fee7-0000-1000-8000-00805f9b34fb';
+        const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb'; // Notify
+        const NIIM_RX_UUID = '00003342-0000-1000-8000-00805f9b34fb'; // Write
+
+        let device = null;
+        let rxChar = null;
+        let txChar = null;
+
+        // UI Elements
+        const connectBtn = document.getElementById('connect-btn');
+        const printBtn = document.getElementById('print-btn');
+        const infoBtn = document.getElementById('info-btn');
+        const logContainer = document.getElementById('log');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
-        const connectBtn = document.getElementById('connect-btn');
-        const printInput = document.getElementById('print-input');
-        const logContainer = document.getElementById('log');
+        const toast = document.getElementById('toast');
+        const labelWidthInput = document.getElementById('label-width');
+        const labelHeightInput = document.getElementById('label-height');
+        const printTextInput = document.getElementById('print-text');
+        const previewBox = document.getElementById('label-preview-box');
+        const previewTextDisplay = document.getElementById('preview-text-display');
 
-        function addLog(message, type = 'info') {
+        // Utils
+        const log = (msg) => {
             const div = document.createElement('div');
-            div.className = `p-2 mb-1 rounded text-sm ${
-                type === 'error' ? 'bg-red-900/30 text-red-400 font-bold' : 
-                type === 'success' ? 'bg-green-900/30 text-green-400' : 
-                'bg-slate-800 text-slate-300'
-            }`;
-            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            logContainer.prepend(div);
-            console.log(`[Niimbot] ${message}`);
-        }
+            div.textContent = `> ${msg}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        };
 
-        window.addEventListener('load', () => {
-            if (!navigator.bluetooth) {
-                addLog('CRITICAL: Web Bluetooth is not available in this browser.', 'error');
-                connectBtn.disabled = true;
-            } else {
-                addLog('System ready. Site is running on HTTPS.');
-            }
-        });
+        const showError = (msg) => {
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+            log(`ERROR: ${msg}`);
+        };
 
-        async function connect() {
-            if (isConnecting) return;
-            isConnecting = true;
-            connectBtn.disabled = true;
-            statusText.textContent = 'Connecting...';
+        // Update Preview
+        const updatePreview = () => {
+            const w = labelWidthInput.value;
+            const h = labelHeightInput.value;
+            previewBox.style.width = `${Math.min(w * 4, 250)}px`;
+            previewBox.style.height = `${Math.min(h * 4, 200)}px`;
+            previewTextDisplay.textContent = printTextInput.value;
+        };
 
+        labelWidthInput.oninput = updatePreview;
+        labelHeightInput.oninput = updatePreview;
+        printTextInput.oninput = updatePreview;
+
+        // Bluetooth Logic
+        const connect = async () => {
             try {
-                addLog('Requesting device... (Select your printer in the popup)');
-                client = new NiimbotBluetoothClient();
+                log('Searching for Niimbot devices...');
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'B' }, { namePrefix: 'D' }, { namePrefix: 'NIIMBOT' }],
+                    optionalServices: [NIIM_SERVICE_UUID]
+                });
+
+                log(`Connecting to ${device.name}...`);
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(NIIM_SERVICE_UUID);
                 
-                await client.connect();
-                addLog('Bluetooth link established.', 'success');
+                rxChar = await service.getCharacteristic(NIIM_RX_UUID);
+                txChar = await service.getCharacteristic(NIIM_TX_UUID);
 
-                // Some Niimbot printers need a moment to "wake up" after the BLE handshake
-                addLog('Initializing printer handshake...');
-                const info = await client.getHeartbeat();
-                console.log('Heartbeat:', info);
+                await txChar.startNotifications();
+                txChar.addEventListener('characteristicvaluechanged', handleNotifications);
 
-                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+
+                updateUIConnected(true);
+                log('Connected and ready!');
+                
+            } catch (err) {
+                showError(err.message);
+            }
+        };
+
+        const onDisconnected = () => {
+            updateUIConnected(false);
+            log('Device disconnected.');
+        };
+
+        const updateUIConnected = (isConnected) => {
+            if (isConnected) {
+                statusDot.className = 'status-dot bg-green-500';
                 statusText.textContent = 'Connected';
-                connectBtn.textContent = 'Disconnect';
-                connectBtn.disabled = false;
-                printInput.disabled = false;
-                printInput.focus();
-                
-                addLog('Printer initialized and ready to print.', 'success');
-                
-                client.on('disconnect', () => {
-                    addLog('Connection closed by device.');
-                    handleDisconnect();
-                });
-
-            } catch (err) {
-                addLog(`Error: ${err.message}`, 'error');
-                console.error(err);
-                handleDisconnect();
-            } finally {
-                isConnecting = false;
+                connectBtn.textContent = 'DISCONNECT';
+                printBtn.disabled = false;
+                printBtn.className = 'w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all active:scale-95';
+                infoBtn.disabled = false;
+            } else {
+                statusDot.className = 'status-dot bg-slate-300';
+                statusText.textContent = 'Disconnected';
+                connectBtn.textContent = 'CONNECT';
+                printBtn.disabled = true;
+                printBtn.className = 'w-full bg-slate-200 text-slate-400 font-bold py-3 rounded-xl cursor-not-allowed transition-all active:scale-95';
+                infoBtn.disabled = true;
             }
-        }
+        };
 
-        function handleDisconnect() {
-            client = null;
-            statusDot.classList.replace('bg-green-500', 'bg-red-500');
-            statusText.textContent = 'Disconnected';
-            connectBtn.textContent = 'Connect Printer';
-            connectBtn.disabled = false;
-            printInput.disabled = true;
-        }
+        const handleNotifications = (event) => {
+            const value = event.target.value;
+            const hex = Array.from(new Uint8Array(value.buffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join(' ');
+            log(`Response: ${hex}`);
+        };
 
-        async function printLine(text) {
-            if (!client || !text.trim()) return;
+        /**
+         * Basic packet generation for Niimbot protocol
+         * Packets are: [0x55, 0x55, CMD, LEN, DATA..., CHECKSUM, 0xAA, 0xAA]
+         */
+        const sendCommand = async (command, data = []) => {
+            if (!rxChar) return;
 
+            const packet = [0x55, 0x55, command, data.length, ...data];
+            let checksum = command ^ data.length;
+            data.forEach(b => checksum ^= b);
+            packet.push(checksum);
+            packet.push(0xAA);
+            packet.push(0xAA);
+
+            log(`Sending CMD 0x${command.toString(16).toUpperCase()}`);
+            await rxChar.writeValue(new Uint8Array(packet));
+        };
+
+        const getPrinterInfo = async () => {
+            await sendCommand(0x40, [0x01]); // Request Printer Info
+        };
+
+        const startPrint = async () => {
+            const text = printTextInput.value;
+            const width = parseInt(labelWidthInput.value);
+            const height = parseInt(labelHeightInput.value);
+
+            log(`Starting print: "${text}" on ${width}x${height}mm`);
+            
             try {
-                addLog(`Generating label: "${text}"`);
+                // 1. Set Label Size / Start Job
+                await sendCommand(0x01, [0x01]); // Start print job
                 
-                // Typical Niimbot resolution is 203 DPI. 
-                // A standard 40x12mm label is roughly 320x96 pixels.
-                const drawer = new LabelDrawer(320, 96);
+                // 2. Mocking density and quantity
+                await sendCommand(0x02, [0x03]); // Density Level 3
                 
-                // Draw text with a slight offset to avoid edge clipping
-                drawer.drawText({
-                    text: text,
-                    x: 20,
-                    y: 20,
-                    fontSize: 40,
-                    lineHeight: 1
-                });
+                // 3. Clear Buffer
+                await sendCommand(0x04, [0x01]);
 
-                const imageData = drawer.getImageData();
-                
-                addLog('Sending data to printer...');
-                await client.startPrint();
-                // printImage takes the Canvas ImageData directly
-                await client.printImage(imageData);
-                await client.endPrint();
+                // 4. Send Text (Simple ASCII implementation for example)
+                // In a production app, we would use a canvas to generate a bitmap
+                // and send it via command 0x85 (Draw Bitmap)
+                const textBytes = Array.from(new TextEncoder().encode(text));
+                await sendCommand(0x10, textBytes); 
 
-                addLog('Print command successful.', 'success');
-                printInput.value = ''; 
+                // 5. Commit and End
+                await sendCommand(0x03, [0x01]); // End Page
+                await sendCommand(0x01, [0x02]); // End Print Job
+                
+                log('Print commands sent successfully.');
             } catch (err) {
-                addLog(`Print Error: ${err.message}`, 'error');
-                // Re-attempting connection often helps if the session timed out
+                showError('Print failed: ' + err.message);
             }
-        }
+        };
 
-        connectBtn.addEventListener('click', () => {
-            if (client) {
-                client.disconnect();
-                handleDisconnect();
+        // Event Listeners
+        connectBtn.onclick = () => {
+            if (device && device.gatt.connected) {
+                device.gatt.disconnect();
             } else {
                 connect();
             }
-        });
+        };
 
-        printInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                printLine(printInput.value);
-            }
-        });
+        printBtn.onclick = startPrint;
+        infoBtn.onclick = getPrinterInfo;
+        document.getElementById('clear-log').onclick = () => {
+            logContainer.innerHTML = '<div>> Log cleared.</div>';
+        };
+
+        // Check compatibility
+        if (!navigator.bluetooth) {
+            showError('Web Bluetooth is not supported in this browser.');
+            connectBtn.disabled = true;
+            connectBtn.className = 'hidden';
+        }
     </script>
-    <style>
-        body { background-color: #0f172a; color: white; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
-        #log::-webkit-scrollbar { width: 4px; }
-        #log::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-    </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-4 font-sans">
-
-    <div class="w-full max-w-md glass border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-        <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-            <div>
-                <h1 class="text-xl font-bold tracking-tight text-white">NiimPrint <span class="text-blue-400">Terminal</span></h1>
-                <div class="flex items-center mt-1">
-                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
-                    <span id="status-text" class="text-xs text-slate-400 uppercase tracking-widest">Disconnected</span>
-                </div>
-            </div>
-            <button id="connect-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-all font-medium active:scale-95 shadow-lg shadow-blue-900/20">
-                Connect Printer
-            </button>
-        </div>
-
-        <div class="p-6 space-y-4">
-            <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Message to Print</label>
-                <input 
-                    type="text" 
-                    id="print-input" 
-                    disabled
-                    placeholder="Type and press Enter..." 
-                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-            </div>
-
-            <div class="mt-6">
-                <div class="flex justify-between items-center mb-2">
-                    <label class="block text-xs font-semibold text-slate-500 uppercase">Activity Log</label>
-                    <span class="text-[10px] text-slate-600">v1.1.0</span>
-                </div>
-                <div id="log" class="h-48 overflow-y-auto bg-black/40 rounded-xl p-3 border border-slate-800 font-mono text-xs">
-                    <div class="text-slate-500 italic">Console initialized...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="px-6 py-4 bg-slate-900/50 text-[10px] text-slate-500 text-center uppercase tracking-tighter">
-            GitHub Pages (HTTPS) context detected.
-        </div>
-    </div>
-
 </body>
 </html>
