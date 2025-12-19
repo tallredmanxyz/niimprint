@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Niimbot Print Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { NiimbotBluetoothClient, LabelDrawer } from 'https://cdn.jsdelivr.net/npm/niimbluelib@1.1.0/+esm';
+
+        // State management
+        let client = null;
+        let isConnecting = false;
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const connectBtn = document.getElementById('connect-btn');
+        const printInput = document.getElementById('print-input');
+        const logContainer = document.getElementById('log');
+
+        function addLog(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `p-2 mb-1 rounded text-sm ${
+                type === 'error' ? 'bg-red-900/30 text-red-400 font-bold' : 
+                type === 'success' ? 'bg-green-900/30 text-green-400' : 
+                'bg-slate-800 text-slate-300'
+            }`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.prepend(div);
+            console.log(`[Niimbot] ${message}`);
+        }
+
+        // Initial Environment Check
+        window.addEventListener('load', () => {
+            if (!navigator.bluetooth) {
+                addLog('Web Bluetooth is NOT supported by this browser. Use Chrome, Edge, or Opera.', 'error');
+                connectBtn.disabled = true;
+                connectBtn.classList.add('opacity-50');
+            } else if (window.location.protocol === 'file:') {
+                addLog('Bluetooth often fails on file:// URLs. Please host this on localhost or a secure HTTPS server.', 'error');
+            } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                addLog('Web Bluetooth requires a Secure Context (HTTPS or Localhost).', 'error');
+            } else {
+                addLog('Environment check passed. Ready to connect.');
+            }
+        });
+
+        async function connect() {
+            if (isConnecting) return;
+            
+            // Re-verify support on click to give user feedback
+            if (!navigator.bluetooth) {
+                addLog('Web Bluetooth is not available.', 'error');
+                return;
+            }
+
+            isConnecting = true;
+            connectBtn.disabled = true;
+            statusText.textContent = 'Connecting...';
+
+            try {
+                addLog('Requesting Bluetooth device...');
+                client = new NiimbotBluetoothClient();
+                await client.connect();
+                
+                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                statusText.textContent = 'Connected';
+                connectBtn.textContent = 'Disconnect';
+                connectBtn.disabled = false;
+                printInput.disabled = false;
+                printInput.focus();
+                
+                addLog('Successfully connected to Niimbot printer.', 'success');
+                
+                client.on('disconnect', () => {
+                    addLog('Printer connection lost.');
+                    handleDisconnect();
+                });
+
+            } catch (err) {
+                addLog(`Connection error: ${err.message}`, 'error');
+                handleDisconnect();
+            } finally {
+                isConnecting = false;
+            }
+        }
+
+        function handleDisconnect() {
+            client = null;
+            statusDot.classList.replace('bg-green-500', 'bg-red-500');
+            statusText.textContent = 'Disconnected';
+            connectBtn.textContent = 'Connect Printer';
+            connectBtn.disabled = false;
+            printInput.disabled = true;
+        }
+
+        async function printLine(text) {
+            if (!client || !text.trim()) return;
+
+            try {
+                addLog(`Preparing to print: "${text}"`);
+                
+                const drawer = new LabelDrawer(300, 100);
+                drawer.drawText({
+                    text: text,
+                    x: 10,
+                    y: 20,
+                    fontSize: 40,
+                    lineHeight: 1.2
+                });
+
+                const imageData = drawer.getImageData();
+                
+                await client.startPrint();
+                await client.printImage(imageData);
+                await client.endPrint();
+
+                addLog('Printed successfully!', 'success');
+                printInput.value = ''; 
+            } catch (err) {
+                addLog(`Print error: ${err.message}`, 'error');
+            }
+        }
+
+        connectBtn.addEventListener('click', () => {
+            if (client) {
+                client.disconnect();
+                handleDisconnect();
+            } else {
+                connect();
+            }
+        });
+
+        printInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                printLine(printInput.value);
+            }
+        });
+    </script>
+    <style>
+        body { background-color: #0f172a; color: white; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
+        #log::-webkit-scrollbar { width: 4px; }
+        #log::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <div class="w-full max-w-md glass border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+        <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">NiimPrint <span class="text-blue-400">Terminal</span></h1>
+                <div class="flex items-center mt-1">
+                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
+                    <span id="status-text" class="text-xs text-slate-400 uppercase tracking-widest">Disconnected</span>
+                </div>
+            </div>
+            <button id="connect-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-all font-medium active:scale-95">
+                Connect Printer
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Message to Print</label>
+                <input 
+                    type="text" 
+                    id="print-input" 
+                    disabled
+                    placeholder="Type something and press Enter..." 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+            </div>
+
+            <div class="mt-6">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Activity Log</label>
+                <div id="log" class="h-48 overflow-y-auto bg-black/40 rounded-xl p-3 border border-slate-800 font-mono text-xs">
+                    <div class="text-slate-500 italic">Initializing system...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-slate-900/50 text-[10px] text-slate-500 text-center uppercase tracking-tighter">
+            Requires HTTPS or Localhost for Bluetooth Support
+        </div>
+    </div>
+
+</body>
+</html>
