@@ -109,8 +109,8 @@
 
     <script>
         /**
-         * Simple implementation of the Niimbot communication protocol 
-         * based on niimbluelib documentation.
+         * Niimbot communication protocol 
+         * Updated to handle service discovery issues common with B-series printers.
          */
         const NIIM_SERVICE_UUID = '0000fee7-0000-1000-8000-00805f9b34fb';
         const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb'; // Notify
@@ -166,15 +166,33 @@
         const connect = async () => {
             try {
                 log('Searching for Niimbot devices...');
+                
+                // We use a broad filter and explicitly list the expected service
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'B' }, { namePrefix: 'D' }, { namePrefix: 'NIIMBOT' }],
-                    optionalServices: [NIIM_SERVICE_UUID]
+                    filters: [
+                        { namePrefix: 'B' }, 
+                        { namePrefix: 'D' }, 
+                        { namePrefix: 'NIIMBOT' },
+                        { services: [NIIM_SERVICE_UUID] }
+                    ],
+                    optionalServices: [NIIM_SERVICE_UUID, '0000180a', '00001800'] // Standard device info services
                 });
 
                 log(`Connecting to ${device.name}...`);
                 const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(NIIM_SERVICE_UUID);
                 
+                log('Discovering primary service...');
+                
+                // Some devices might report the UUID in shorthand 0xfee7
+                let service;
+                try {
+                    service = await server.getPrimaryService(NIIM_SERVICE_UUID);
+                } catch (e) {
+                    log('Standard UUID failed, trying shorthand...');
+                    service = await server.getPrimaryService(0xFEE7);
+                }
+
+                log('Getting characteristics...');
                 rxChar = await service.getCharacteristic(NIIM_RX_UUID);
                 txChar = await service.getCharacteristic(NIIM_TX_UUID);
 
@@ -188,6 +206,7 @@
                 
             } catch (err) {
                 showError(err.message);
+                if (device && device.gatt.connected) device.gatt.disconnect();
             }
         };
 
@@ -222,10 +241,6 @@
             log(`Response: ${hex}`);
         };
 
-        /**
-         * Basic packet generation for Niimbot protocol
-         * Packets are: [0x55, 0x55, CMD, LEN, DATA..., CHECKSUM, 0xAA, 0xAA]
-         */
         const sendCommand = async (command, data = []) => {
             if (!rxChar) return;
 
@@ -241,7 +256,7 @@
         };
 
         const getPrinterInfo = async () => {
-            await sendCommand(0x40, [0x01]); // Request Printer Info
+            await sendCommand(0x40, [0x01]); 
         };
 
         const startPrint = async () => {
@@ -252,26 +267,17 @@
             log(`Starting print: "${text}" on ${width}x${height}mm`);
             
             try {
-                // 1. Set Label Size / Start Job
-                await sendCommand(0x01, [0x01]); // Start print job
+                await sendCommand(0x01, [0x01]); // Start
+                await sendCommand(0x02, [0x03]); // Density
+                await sendCommand(0x04, [0x01]); // Clear
                 
-                // 2. Mocking density and quantity
-                await sendCommand(0x02, [0x03]); // Density Level 3
-                
-                // 3. Clear Buffer
-                await sendCommand(0x04, [0x01]);
-
-                // 4. Send Text (Simple ASCII implementation for example)
-                // In a production app, we would use a canvas to generate a bitmap
-                // and send it via command 0x85 (Draw Bitmap)
                 const textBytes = Array.from(new TextEncoder().encode(text));
                 await sendCommand(0x10, textBytes); 
 
-                // 5. Commit and End
                 await sendCommand(0x03, [0x01]); // End Page
-                await sendCommand(0x01, [0x02]); // End Print Job
+                await sendCommand(0x01, [0x02]); // End Job
                 
-                log('Print commands sent successfully.');
+                log('Print commands sent.');
             } catch (err) {
                 showError('Print failed: ' + err.message);
             }
@@ -292,9 +298,8 @@
             logContainer.innerHTML = '<div>> Log cleared.</div>';
         };
 
-        // Check compatibility
         if (!navigator.bluetooth) {
-            showError('Web Bluetooth is not supported in this browser.');
+            showError('Web Bluetooth is not supported.');
             connectBtn.disabled = true;
             connectBtn.className = 'hidden';
         }
