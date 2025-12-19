@@ -250,23 +250,33 @@
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 
                 // 2. Instantiate Task
-                // We attempt to use B1PrintTask specifically, falling back to PrintTaskV3
                 let task;
                 
                 if (window.niimbluelib.B1PrintTask) {
                     addLog("Using B1PrintTask...", "info");
                     task = new window.niimbluelib.B1PrintTask(client);
                 } else if (window.niimbluelib.PrintTaskV3) {
-                    addLog("B1PrintTask not found, falling back to PrintTaskV3...", "warning");
+                    addLog("Using PrintTaskV3 (Fallback)...", "warning");
                     task = new window.niimbluelib.PrintTaskV3(client);
                 } else {
                     throw new Error("No compatible PrintTask class found in library.");
                 }
 
+                // Debug: Log available methods
+                console.log("Task methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(task)));
+
                 // 3. Execute Print
-                // printBitmap(image, orientation, quantity)
-                addLog("Sending bitmap data...");
-                await task.printBitmap(imageData, 1, 1);
+                addLog("Sending print data...");
+                
+                // FIXED: Use 'print' instead of 'printBitmap'.
+                // If 'print' doesn't exist, we check for 'printLabel' as a fallback.
+                if (typeof task.print === 'function') {
+                    await task.print(imageData, 1);
+                } else if (typeof task.printLabel === 'function') {
+                    await task.printLabel(imageData, 1);
+                } else {
+                    throw new Error("Print method not found on Task object. Check console for available methods.");
+                }
                 
                 addLog("Print job sent successfully!", "success");
                 
