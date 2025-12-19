@@ -32,9 +32,7 @@
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Left Column: Controls -->
             <div class="space-y-6">
-                <!-- Label Configuration -->
                 <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
@@ -52,7 +50,6 @@
                     </div>
                 </section>
 
-                <!-- Content -->
                 <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -71,9 +68,7 @@
                 </section>
             </div>
 
-            <!-- Right Column: Log & Visualizer -->
             <div class="space-y-6">
-                <!-- Preview Canvas -->
                 <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h2 class="text-lg font-semibold mb-4">Visual Preview</h2>
                     <div class="bg-slate-100 rounded-lg flex items-center justify-center p-4 aspect-square relative overflow-hidden">
@@ -81,10 +76,8 @@
                             <span id="preview-text-display" class="text-sm break-words overflow-hidden">Hello NiimBlue!</span>
                         </div>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-2 text-center uppercase tracking-wider font-bold">Preview is approximate</p>
                 </section>
 
-                <!-- Log -->
                 <section class="bg-slate-900 rounded-2xl p-4 shadow-xl">
                     <div class="flex justify-between items-center mb-2">
                         <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest">System Log</h2>
@@ -96,31 +89,23 @@
                 </section>
             </div>
         </div>
-
-        <footer class="mt-12 text-center text-slate-400 text-sm">
-            <p>Requires Chrome/Edge and Bluetooth hardware.</p>
-        </footer>
     </div>
 
-    <!-- UI Interaction Overlay for Errors -->
     <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl opacity-0 pointer-events-none transition-all duration-300">
         Error Message
     </div>
 
     <script>
-        /**
-         * Enhanced Niimbot connection logic.
-         * Based on niim.blue connection strategies for B-series printers.
-         */
-        const NIIM_SERVICE_UUID = '0000fee7-0000-1000-8000-00805f9b34fb';
-        const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb'; // Notify
-        const NIIM_RX_UUID = '00003342-0000-1000-8000-00805f9b34fb'; // Write
+        // NiimBlue uses these specific UUIDs
+        const NIIM_SERVICE_128 = '0000fee7-0000-1000-8000-00805f9b34fb';
+        const NIIM_SERVICE_16 = 0xfee7;
+        const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb';
+        const NIIM_RX_UUID = '00003342-0000-1000-8000-00805f9b34fb';
 
         let device = null;
         let rxChar = null;
         let txChar = null;
 
-        // UI Elements
         const connectBtn = document.getElementById('connect-btn');
         const printBtn = document.getElementById('print-btn');
         const infoBtn = document.getElementById('info-btn');
@@ -148,58 +133,50 @@
             log(`ERROR: ${msg}`);
         };
 
-        const updatePreview = () => {
-            const w = labelWidthInput.value;
-            const h = labelHeightInput.value;
-            previewBox.style.width = `${Math.min(w * 4, 250)}px`;
-            previewBox.style.height = `${Math.min(h * 4, 200)}px`;
-            previewTextDisplay.textContent = printTextInput.value;
-        };
-
-        labelWidthInput.oninput = updatePreview;
-        labelHeightInput.oninput = updatePreview;
-        printTextInput.oninput = updatePreview;
-
         const connect = async () => {
             try {
-                log('Searching for Niimbot devices...');
+                log('Requesting Bluetooth device...');
                 
-                // Strategy: Use broad prefixes and add 16-bit shorthand to optionalServices
+                // Mirroring niim.blue discovery: Broad filters + explicit optional services
                 device = await navigator.bluetooth.requestDevice({
                     filters: [
-                        { namePrefix: 'B' }, 
-                        { namePrefix: 'D' }, 
+                        { namePrefix: 'B' },
+                        { namePrefix: 'D' },
                         { namePrefix: 'NIIMBOT' },
                         { namePrefix: 'JC' }
                     ],
-                    optionalServices: [NIIM_SERVICE_UUID, 0xFEE7]
+                    // We list BOTH the 16-bit and 128-bit versions to ensure the browser identifies them
+                    optionalServices: [NIIM_SERVICE_128, NIIM_SERVICE_16]
                 });
 
-                log(`Connecting to ${device.name}...`);
+                log(`Connecting to GATT Server on ${device.name}...`);
                 const server = await device.gatt.connect();
                 
-                log('Discovering Primary Service...');
-                let service;
-                try {
-                    // Try full 128-bit UUID first
-                    service = await server.getPrimaryService(NIIM_SERVICE_UUID);
-                } catch (e) {
-                    log('Full UUID not found, trying shorthand 0xFEE7...');
-                    // Fallback to 16-bit shorthand used by many B-series models
-                    service = await server.getPrimaryService(0xFEE7);
+                log('Fetching Primary Services...');
+                // Get all services to see what the device is actually reporting
+                const services = await server.getPrimaryServices();
+                log(`Found ${services.length} services.`);
+                
+                // Find the printer service by checking both UUID formats
+                let service = services.find(s => 
+                    s.uuid === NIIM_SERVICE_128 || 
+                    s.uuid.includes('fee7')
+                );
+
+                if (!service) {
+                    throw new Error('Printer service (FEE7) not found in the list of available services.');
                 }
 
-                log('Getting characteristics...');
+                log('Service found. Getting characteristics...');
                 rxChar = await service.getCharacteristic(NIIM_RX_UUID);
                 txChar = await service.getCharacteristic(NIIM_TX_UUID);
 
                 await txChar.startNotifications();
                 txChar.addEventListener('characteristicvaluechanged', handleNotifications);
-
                 device.addEventListener('gattserverdisconnected', onDisconnected);
 
                 updateUIConnected(true);
-                log('Connected and ready!');
+                log('Connected! Printer is ready.');
                 
             } catch (err) {
                 showError(err.message);
@@ -218,14 +195,14 @@
                 statusText.textContent = 'Connected';
                 connectBtn.textContent = 'DISCONNECT';
                 printBtn.disabled = false;
-                printBtn.className = 'w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all active:scale-95';
+                printBtn.className = 'w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 active:scale-95';
                 infoBtn.disabled = false;
             } else {
                 statusDot.className = 'status-dot bg-slate-300';
                 statusText.textContent = 'Disconnected';
                 connectBtn.textContent = 'CONNECT';
                 printBtn.disabled = true;
-                printBtn.className = 'w-full bg-slate-200 text-slate-400 font-bold py-3 rounded-xl cursor-not-allowed transition-all active:scale-95';
+                printBtn.className = 'w-full bg-slate-200 text-slate-400 font-bold py-3 rounded-xl cursor-not-allowed';
                 infoBtn.disabled = true;
             }
         };
@@ -235,65 +212,46 @@
             const hex = Array.from(new Uint8Array(value.buffer))
                 .map(b => b.toString(16).padStart(2, '0'))
                 .join(' ');
-            log(`Response: ${hex}`);
+            log(`Printer says: ${hex}`);
         };
 
         const sendCommand = async (command, data = []) => {
             if (!rxChar) return;
-
             const packet = [0x55, 0x55, command, data.length, ...data];
             let checksum = command ^ data.length;
             data.forEach(b => checksum ^= b);
-            packet.push(checksum);
-            packet.push(0xAA);
-            packet.push(0xAA);
-
-            log(`Sending CMD 0x${command.toString(16).toUpperCase()}`);
+            packet.push(checksum, 0xAA, 0xAA);
             await rxChar.writeValue(new Uint8Array(packet));
         };
 
-        const getPrinterInfo = async () => {
-            await sendCommand(0x40, [0x01]); 
+        connectBtn.onclick = () => {
+            if (device && device.gatt.connected) device.gatt.disconnect();
+            else connect();
         };
 
-        const startPrint = async () => {
+        printBtn.onclick = async () => {
             const text = printTextInput.value;
             try {
-                await sendCommand(0x01, [0x01]); // Job Start
+                await sendCommand(0x01, [0x01]); // Start
                 await sendCommand(0x02, [0x03]); // Density
                 await sendCommand(0x04, [0x01]); // Clear
-                
                 const textBytes = Array.from(new TextEncoder().encode(text));
-                await sendCommand(0x10, textBytes); // Raw Text
-
-                await sendCommand(0x03, [0x01]); // Commit Page
-                await sendCommand(0x01, [0x02]); // Job End
-                
-                log('Print sequence sent.');
+                await sendCommand(0x10, textBytes); 
+                await sendCommand(0x03, [0x01]); // End Page
+                await sendCommand(0x01, [0x02]); // End Job
+                log('Print signal sent.');
             } catch (err) {
-                showError('Print failed: ' + err.message);
+                showError('Print error: ' + err.message);
             }
         };
 
-        connectBtn.onclick = () => {
-            if (device && device.gatt.connected) {
-                device.gatt.disconnect();
-            } else {
-                connect();
-            }
-        };
+        infoBtn.onclick = () => sendCommand(0x40, [0x01]);
+        document.getElementById('clear-log').onclick = () => logContainer.innerHTML = '';
+        
+        // Initial preview
+        previewTextDisplay.textContent = printTextInput.value;
+        printTextInput.oninput = () => previewTextDisplay.textContent = printTextInput.value;
 
-        printBtn.onclick = startPrint;
-        infoBtn.onclick = getPrinterInfo;
-        document.getElementById('clear-log').onclick = () => {
-            logContainer.innerHTML = '<div>> Log cleared.</div>';
-        };
-
-        if (!navigator.bluetooth) {
-            showError('Web Bluetooth not supported.');
-            connectBtn.disabled = true;
-            connectBtn.className = 'hidden';
-        }
     </script>
 </body>
 </html>
