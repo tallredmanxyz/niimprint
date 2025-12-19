@@ -3,19 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NiimBlue Web Printer</title>
+    <title>NiimBlue Web Printer (B1 Edition)</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- NiimBlueLib -->
+    <!-- NiimBlueLib (Latest) -->
     <script src="https://unpkg.com/@mmote/niimbluelib@latest/dist/umd/niimbluelib.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
         body { font-family: 'Inter', sans-serif; }
         .font-mono { font-family: 'JetBrains+Mono', monospace; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        #preview-canvas { border: 1px solid #e2e8f0; background: white; max-width: 100%; height: auto; image-rendering: pixelated; }
+        /* Pixelated rendering for accurate label preview */
+        #label-preview { 
+            image-rendering: pixelated; 
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            max-width: 100%;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen p-4 md:p-8">
@@ -24,19 +31,19 @@
         <!-- Header -->
         <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-blue-600 rounded-xl text-white">
+                <div class="p-3 bg-indigo-600 rounded-xl text-white">
                     <i data-lucide="printer" size="28"></i>
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">NiimBlue Web</h1>
-                    <p class="text-slate-500 text-sm">Standalone Bluetooth Client</p>
+                    <h1 class="text-2xl font-bold tracking-tight">NiimBlue B1</h1>
+                    <p class="text-slate-500 text-sm">Web Bluetooth Client</p>
                 </div>
             </div>
 
             <div id="connection-controls" class="flex items-center gap-3">
-                <button id="btn-connect" class="flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg active:scale-95 transition-all">
+                <button id="btn-connect" class="flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg active:scale-95 transition-all">
                     <i data-lucide="bluetooth" size="18"></i>
-                    <span>Connect Printer</span>
+                    <span>Connect B1</span>
                 </button>
                 <button id="btn-disconnect" class="hidden flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-all active:scale-95 border border-red-100">
                     <i data-lucide="bluetooth-off" size="18"></i>
@@ -52,12 +59,12 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Left Column: Settings & Printing -->
+            <!-- Left Panel: Controls -->
             <section class="md:col-span-1 space-y-6">
-                <!-- Status Panel -->
+                <!-- Status -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <i data-lucide="activity" size="16"></i> Device Status
+                        <i data-lucide="activity" size="16"></i> Printer Status
                     </h2>
                     
                     <div class="space-y-4">
@@ -65,71 +72,80 @@
                             <span class="text-slate-500">Connection</span>
                             <span id="status-connection" class="flex items-center gap-1.5 font-medium text-slate-400">
                                 <div class="w-2 h-2 rounded-full bg-slate-300"></div>
-                                Offline
+                                Disconnected
                             </span>
                         </div>
                         <div class="flex justify-between items-center">
-                            <span class="text-slate-500">Model</span>
+                            <span class="text-slate-500">Model ID</span>
                             <span id="status-model" class="font-mono font-medium text-slate-400">---</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Print Control Panel -->
+                <!-- Label Content -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                        <i data-lucide="type" size="16"></i> Label Content
+                        <i data-lucide="edit-3" size="16"></i> Label Content
                     </h2>
                     
                     <div>
-                        <label class="text-[10px] text-slate-400 font-bold uppercase block mb-1">Message</label>
-                        <input id="print-text" type="text" placeholder="Type something..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                        <label class="text-[10px] text-slate-400 font-bold uppercase block mb-1">Top Line</label>
+                        <input id="input-line1" type="text" value="Niimbot B1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all">
+                    </div>
+                     <div>
+                        <label class="text-[10px] text-slate-400 font-bold uppercase block mb-1">Bottom Line</label>
+                        <input id="input-line2" type="text" value="Test Print" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all">
                     </div>
 
-                    <div class="pt-2">
-                        <button id="btn-print" disabled class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none transition-all active:scale-[0.98]">
-                            <i data-lucide="zap" size="18"></i>
+                    <div class="pt-4">
+                        <button id="btn-print" disabled class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none transition-all active:scale-[0.98]">
+                            <i data-lucide="printer" size="18"></i>
                             Print Label
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Column: Preview & Console -->
+            <!-- Right Panel: Preview & Logs -->
             <section class="md:col-span-2 space-y-6">
-                <!-- Preview Canvas -->
+                <!-- Preview -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <i data-lucide="eye" size="16"></i> Print Preview
                     </h2>
-                    <div class="flex flex-col items-center justify-center bg-slate-100 rounded-xl p-8 min-h-[160px]">
-                        <canvas id="preview-canvas" width="320" height="120"></canvas>
-                        <p class="text-[10px] text-slate-400 mt-3 uppercase tracking-widest font-bold">Generated 203 DPI Bitmap</p>
+                    <div class="flex flex-col items-center justify-center bg-slate-50 rounded-xl p-8 min-h-[200px] border border-dashed border-slate-200">
+                        <!-- B1 Print Width is typically ~384px (48mm) or up to ~576px depending on paper width. 
+                             We default to 384px (widest generic setting) x 160px height -->
+                        <canvas id="label-preview" width="384" height="160"></canvas>
+                        <p class="text-[10px] text-slate-400 mt-4 uppercase tracking-widest font-bold">
+                            Canvas Size: 384 x 160 px (203 DPI)
+                        </p>
                     </div>
                 </div>
 
-                <!-- Console -->
+                <!-- Logs -->
                 <div class="bg-slate-900 rounded-2xl shadow-xl flex flex-col min-h-[300px] overflow-hidden">
                     <div class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-xs font-mono text-slate-400">Communication Logs</span>
+                            <span class="text-xs font-mono text-slate-400">System Logs</span>
                         </div>
                         <button id="btn-clear-logs" class="text-[10px] uppercase tracking-widest font-bold text-slate-500 hover:text-white">Clear</button>
                     </div>
                     
-                    <div id="log-container" class="flex-1 p-4 font-mono text-[11px] overflow-y-auto space-y-1 scrollbar-hide bg-slate-950">
+                    <div id="log-container" class="flex-1 p-4 font-mono text-[11px] overflow-y-auto space-y-1 scrollbar-hide bg-slate-950 text-indigo-100">
+                        <div class="text-slate-600 italic">Ready...</div>
                     </div>
                 </div>
             </section>
         </div>
 
         <footer class="text-center py-6 text-slate-400 text-sm">
-            <p>Compatible with D11, D110, and B-series models via NiimBlueLib</p>
+            <p>Uses <span class="font-mono text-indigo-500">B1PrintTask</span> protocol implementation.</p>
         </footer>
     </div>
 
     <script>
-        // DOM Elements
+        // --- UI Elements ---
         const btnConnect = document.getElementById('btn-connect');
         const btnDisconnect = document.getElementById('btn-disconnect');
         const btnPrint = document.getElementById('btn-print');
@@ -137,26 +153,161 @@
         const logContainer = document.getElementById('log-container');
         const errorBanner = document.getElementById('error-banner');
         const errorMessage = document.getElementById('error-message');
-        const printInput = document.getElementById('print-text');
-        const previewCanvas = document.getElementById('preview-canvas');
-        const ctx = previewCanvas.getContext('2d');
+        
+        const inputLine1 = document.getElementById('input-line1');
+        const inputLine2 = document.getElementById('input-line2');
+        const canvas = document.getElementById('label-preview');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         const statusConnection = document.getElementById('status-connection');
         const statusModel = document.getElementById('status-model');
 
         let client = null;
 
-        // Initialize Icons
+        // --- Init ---
         lucide.createIcons();
+        window.onload = init;
+
+        async function init() {
+            if (typeof window.niimbluelib === 'undefined') {
+                showError("NiimBlueLib failed to load. Please check your internet connection.");
+                return;
+            }
+            
+            // Debug: Check available classes
+            console.log("NiimBlueLib Classes:", Object.keys(window.niimbluelib));
+            
+            client = new window.niimbluelib.NiimbotBluetoothClient();
+            addLog("NiimBlueLib initialized.");
+            renderLabel();
+        }
+
+        // --- Rendering ---
+        function renderLabel() {
+            // Clear canvas (White background is 'paper')
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Text (Black ink)
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const text1 = inputLine1.value || "";
+            const text2 = inputLine2.value || "";
+
+            // Line 1
+            ctx.font = 'bold 48px sans-serif';
+            ctx.fillText(text1, canvas.width / 2, 60);
+
+            // Line 2
+            ctx.font = 'normal 32px sans-serif';
+            ctx.fillText(text2, canvas.width / 2, 110);
+        }
+
+        inputLine1.oninput = renderLabel;
+        inputLine2.oninput = renderLabel;
+
+        // --- Connection Logic ---
+        btnConnect.onclick = async () => {
+            showError(null);
+            addLog("Requesting Bluetooth device...");
+            
+            try {
+                await client.connect();
+                updateUI(true);
+                addLog("Connected to printer!", "success");
+
+                // Get printer info to confirm model
+                const info = await client.getPrinterInfo();
+                statusModel.textContent = info.modelId || "Generic B1";
+                addLog(`Printer ID: ${info.modelId}`, "success");
+                
+            } catch (err) {
+                console.error(err);
+                addLog(`Connection Error: ${err.message}`, "error");
+                showError(err.message);
+            }
+        };
+
+        btnDisconnect.onclick = async () => {
+            if (client) await client.disconnect();
+            updateUI(false);
+            addLog("Disconnected.");
+        };
+
+        // --- Printing Logic ---
+        btnPrint.onclick = async () => {
+            if (!client || !client.isConnected()) {
+                addLog("Printer not connected.", "error");
+                return;
+            }
+
+            addLog("Preparing print task...");
+            
+            try {
+                // 1. Capture Data
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // 2. Instantiate Task
+                // We attempt to use B1PrintTask specifically, falling back to PrintTaskV3
+                let task;
+                
+                if (window.niimbluelib.B1PrintTask) {
+                    addLog("Using B1PrintTask...", "info");
+                    task = new window.niimbluelib.B1PrintTask(client);
+                } else if (window.niimbluelib.PrintTaskV3) {
+                    addLog("B1PrintTask not found, falling back to PrintTaskV3...", "warning");
+                    task = new window.niimbluelib.PrintTaskV3(client);
+                } else {
+                    throw new Error("No compatible PrintTask class found in library.");
+                }
+
+                // 3. Execute Print
+                // printBitmap(image, orientation, quantity)
+                addLog("Sending bitmap data...");
+                await task.printBitmap(imageData, 1, 1);
+                
+                addLog("Print job sent successfully!", "success");
+                
+            } catch (err) {
+                console.error(err);
+                addLog(`Print Failed: ${err.message}`, "error");
+                showError(err.message);
+            }
+        };
+
+        // --- Helpers ---
+        function updateUI(connected) {
+            btnConnect.classList.toggle('hidden', connected);
+            btnDisconnect.classList.toggle('hidden', !connected);
+            btnPrint.disabled = !connected;
+
+            if (connected) {
+                statusConnection.innerHTML = `<i data-lucide="check-circle-2" size="16"></i> Online`;
+                statusConnection.className = "flex items-center gap-1.5 font-medium text-emerald-600";
+            } else {
+                statusConnection.innerHTML = `<div class="w-2 h-2 rounded-full bg-slate-300"></div> Disconnected`;
+                statusConnection.className = "flex items-center gap-1.5 font-medium text-slate-400";
+                statusModel.textContent = "---";
+            }
+            lucide.createIcons();
+        }
 
         function addLog(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
             logEntry.className = `flex gap-3 leading-relaxed border-b border-slate-800/50 pb-1`;
-            let colorClass = 'text-blue-300';
+            
+            let colorClass = 'text-indigo-300';
             if (type === 'error') colorClass = 'text-red-400';
             if (type === 'success') colorClass = 'text-emerald-400';
-            logEntry.innerHTML = `<span class="text-slate-500 shrink-0">[${timestamp}]</span><span class="${colorClass} break-all">${message}</span>`;
+            if (type === 'warning') colorClass = 'text-amber-400';
+
+            logEntry.innerHTML = `
+                <span class="text-slate-500 shrink-0">[${timestamp}]</span>
+                <span class="${colorClass} break-all">${message}</span>
+            `;
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
@@ -167,96 +318,10 @@
             errorMessage.textContent = msg;
         }
 
-        function drawPreview() {
-            const text = printInput.value || "Sample Label";
-            // Clear canvas
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-            // Draw text
-            ctx.fillStyle = 'black';
-            ctx.font = 'bold 40px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, previewCanvas.width / 2, previewCanvas.height / 2);
-        }
-
-        function updateUI(connected) {
-            btnConnect.classList.toggle('hidden', connected);
-            btnDisconnect.classList.toggle('hidden', !connected);
-            btnPrint.disabled = !connected;
-
-            if (connected) {
-                statusConnection.innerHTML = `<i data-lucide="check-circle-2" size="16"></i> Online`;
-                statusConnection.className = "flex items-center gap-1.5 font-medium text-green-600";
-            } else {
-                statusConnection.innerHTML = `<div class="w-2 h-2 rounded-full bg-slate-300"></div> Offline`;
-                statusConnection.className = "flex items-center gap-1.5 font-medium text-slate-400";
-                statusModel.textContent = "---";
-            }
-            lucide.createIcons();
-        }
-
-        async function init() {
-            if (window.niimbluelib) {
-                client = new window.niimbluelib.NiimbotBluetoothClient();
-                addLog("NiimBlueLib ready.");
-                drawPreview();
-            } else {
-                showError("Library failed to load.");
-            }
-        }
-
-        printInput.oninput = drawPreview;
-
-        btnConnect.onclick = async () => {
-            showError(null);
-            addLog("Requesting Bluetooth device...");
-            try {
-                await client.connect();
-                updateUI(true);
-                addLog("Connected to printer!", "success");
-                const info = await client.getPrinterInfo();
-                statusModel.textContent = info.modelId || "Connected";
-            } catch (err) {
-                addLog(err.message, "error");
-                showError(err.message);
-            }
-        };
-
-        btnDisconnect.onclick = async () => {
-            await client.disconnect();
-            updateUI(false);
-            addLog("Disconnected.");
-        };
-
-        btnPrint.onclick = async () => {
-            if (!client) return;
-            addLog("Starting print task...");
-            try {
-                // 1. Get image data from canvas
-                const imageData = ctx.getImageData(0, 0, previewCanvas.width, previewCanvas.height);
-                
-                // 2. Create a PrintTask (Version 3 is standard for most D110/B-series)
-                // Arguments: client, label name, label quantity
-                const task = new window.niimbluelib.PrintTaskV3(client, "WebLabel", 1);
-                
-                // 3. Add the canvas image to the task
-                // printBitmap takes (imageData, orientation)
-                await task.printBitmap(imageData, 0);
-                
-                addLog("Print data sent successfully!", "success");
-            } catch (err) {
-                addLog(`Print Error: ${err.message}`, "error");
-                showError(err.message);
-            }
-        };
-
         btnClearLogs.onclick = () => {
             logContainer.innerHTML = '';
             addLog("Logs cleared.");
         };
-
-        window.onload = init;
     </script>
 </body>
 </html>
