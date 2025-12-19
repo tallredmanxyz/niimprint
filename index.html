@@ -109,8 +109,8 @@
 
     <script>
         /**
-         * Niimbot communication protocol 
-         * Updated to handle service discovery issues common with B-series printers.
+         * Updated Niimbot connection logic.
+         * The library niim.blue uses broader filtering and 16-bit UUID matching.
          */
         const NIIM_SERVICE_UUID = '0000fee7-0000-1000-8000-00805f9b34fb';
         const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb'; // Notify
@@ -134,7 +134,6 @@
         const previewBox = document.getElementById('label-preview-box');
         const previewTextDisplay = document.getElementById('preview-text-display');
 
-        // Utils
         const log = (msg) => {
             const div = document.createElement('div');
             div.textContent = `> ${msg}`;
@@ -149,7 +148,6 @@
             log(`ERROR: ${msg}`);
         };
 
-        // Update Preview
         const updatePreview = () => {
             const w = labelWidthInput.value;
             const h = labelHeightInput.value;
@@ -162,33 +160,37 @@
         labelHeightInput.oninput = updatePreview;
         printTextInput.oninput = updatePreview;
 
-        // Bluetooth Logic
         const connect = async () => {
             try {
                 log('Searching for Niimbot devices...');
                 
-                // We use a broad filter and explicitly list the expected service
+                /**
+                 * NiimBlue library strategy:
+                 * 1. Request devices with broad name prefixes.
+                 * 2. Include the 16-bit shorthand (0xfee7) in optionalServices.
+                 * 3. Do not filter by service in the initial 'filters' to avoid strict matches.
+                 */
                 device = await navigator.bluetooth.requestDevice({
                     filters: [
                         { namePrefix: 'B' }, 
                         { namePrefix: 'D' }, 
                         { namePrefix: 'NIIMBOT' },
-                        { services: [NIIM_SERVICE_UUID] }
+                        { namePrefix: 'JC' } // Some older models
                     ],
-                    optionalServices: [NIIM_SERVICE_UUID, '0000180a', '00001800'] // Standard device info services
+                    optionalServices: [NIIM_SERVICE_UUID, 0xFEE7]
                 });
 
                 log(`Connecting to ${device.name}...`);
                 const server = await device.gatt.connect();
                 
-                log('Discovering primary service...');
-                
-                // Some devices might report the UUID in shorthand 0xfee7
+                log('Discovering Primary Service...');
                 let service;
                 try {
+                    // Try 128-bit UUID first
                     service = await server.getPrimaryService(NIIM_SERVICE_UUID);
                 } catch (e) {
-                    log('Standard UUID failed, trying shorthand...');
+                    log('128-bit UUID failed, trying 16-bit shorthand...');
+                    // Fallback to 16-bit shorthand
                     service = await server.getPrimaryService(0xFEE7);
                 }
 
@@ -261,29 +263,28 @@
 
         const startPrint = async () => {
             const text = printTextInput.value;
-            const width = parseInt(labelWidthInput.value);
-            const height = parseInt(labelHeightInput.value);
-
-            log(`Starting print: "${text}" on ${width}x${height}mm`);
-            
             try {
-                await sendCommand(0x01, [0x01]); // Start
-                await sendCommand(0x02, [0x03]); // Density
-                await sendCommand(0x04, [0x01]); // Clear
+                // Initialize job
+                await sendCommand(0x01, [0x01]); 
+                // Set Density
+                await sendCommand(0x02, [0x03]); 
+                // Clear
+                await sendCommand(0x04, [0x01]);
                 
+                // Text data
                 const textBytes = Array.from(new TextEncoder().encode(text));
                 await sendCommand(0x10, textBytes); 
 
-                await sendCommand(0x03, [0x01]); // End Page
-                await sendCommand(0x01, [0x02]); // End Job
+                // Commit
+                await sendCommand(0x03, [0x01]); 
+                await sendCommand(0x01, [0x02]); 
                 
-                log('Print commands sent.');
+                log('Print sequence sent.');
             } catch (err) {
                 showError('Print failed: ' + err.message);
             }
         };
 
-        // Event Listeners
         connectBtn.onclick = () => {
             if (device && device.gatt.connected) {
                 device.gatt.disconnect();
@@ -299,7 +300,7 @@
         };
 
         if (!navigator.bluetooth) {
-            showError('Web Bluetooth is not supported.');
+            showError('Web Bluetooth not supported.');
             connectBtn.disabled = true;
             connectBtn.className = 'hidden';
         }
