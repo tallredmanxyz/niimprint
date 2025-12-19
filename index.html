@@ -16,7 +16,6 @@
 <body class="bg-slate-50 min-h-screen text-slate-900">
 
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <!-- Header -->
         <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-slate-800">NiimBlue <span class="text-blue-600">Web</span></h1>
@@ -96,6 +95,8 @@
     </div>
 
     <script>
+        // Use the exact service definitions from the library
+        const NIIM_SERVICE_FEE7 = 0xfee7;
         const NIIM_SERVICE_128 = '0000fee7-0000-1000-8000-00805f9b34fb';
         const NIIM_TX_UUID = '00003343-0000-1000-8000-00805f9b34fb';
         const NIIM_RX_UUID = '00003342-0000-1000-8000-00805f9b34fb';
@@ -130,34 +131,37 @@
 
         const connect = async () => {
             try {
-                log('Searching for Niimbot...');
+                log('Searching for devices...');
+                
+                // Using acceptAllDevices can sometimes bypass filtering issues on Windows/Android
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { namePrefix: 'B' },
-                        { namePrefix: 'D' },
-                        { namePrefix: 'NIIMBOT' },
-                        { namePrefix: 'JC' }
-                    ],
-                    optionalServices: [NIIM_SERVICE_128, 0xfee7]
+                    acceptAllDevices: true,
+                    optionalServices: [NIIM_SERVICE_128, NIIM_SERVICE_FEE7]
                 });
 
                 log(`Connecting to ${device.name}...`);
                 const server = await device.gatt.connect();
                 
-                log('Discovering Services...');
-                // AGGRESSIVE DISCOVERY: Fetch ALL primary services first.
-                // This forces the browser to populate the GATT table completely.
-                const services = await server.getPrimaryServices();
-                log(`Found ${services.length} primary services.`);
-                
-                // Manually find the service by string comparison
-                let service = services.find(s => s.uuid.toLowerCase().includes('fee7'));
+                log('Synchronizing GATT services...');
+                // Some devices need a small delay after connection before discovery
+                await new Promise(r => setTimeout(r, 600));
 
-                if (!service) {
-                    throw new Error('Could not find FEE7 service in discovered services.');
+                let service;
+                try {
+                    // Try getting the primary service directly first
+                    service = await server.getPrimaryService(NIIM_SERVICE_FEE7);
+                    log('Service FEE7 resolved.');
+                } catch (e) {
+                    log('Direct FEE7 resolution failed, attempting full discovery...');
+                    const services = await server.getPrimaryServices();
+                    service = services.find(s => s.uuid.toLowerCase().includes('fee7'));
                 }
 
-                log('Printer Service found. Mapping characteristics...');
+                if (!service) {
+                    throw new Error('Printer service not found. Try unpairing the device from your OS settings and reconnecting.');
+                }
+
+                log('Mapping characteristics...');
                 rxChar = await service.getCharacteristic(NIIM_RX_UUID);
                 txChar = await service.getCharacteristic(NIIM_TX_UUID);
 
@@ -166,7 +170,7 @@
                 device.addEventListener('gattserverdisconnected', onDisconnected);
 
                 updateUIConnected(true);
-                log('Connection successful!');
+                log('Printer connected successfully!');
                 
             } catch (err) {
                 showError(err.message);
@@ -201,7 +205,7 @@
             const hex = Array.from(new Uint8Array(event.target.value.buffer))
                 .map(b => b.toString(16).padStart(2, '0'))
                 .join(' ');
-            log(`Printer feedback: ${hex}`);
+            log(`FEEDBACK: ${hex}`);
         };
 
         const sendCommand = async (command, data = []) => {
@@ -221,14 +225,14 @@
         printBtn.onclick = async () => {
             const text = printTextInput.value;
             try {
-                await sendCommand(0x01, [0x01]); // Start Job
+                await sendCommand(0x01, [0x01]); // Start
                 await sendCommand(0x02, [0x03]); // Density
-                await sendCommand(0x04, [0x01]); // Clear buffer
+                await sendCommand(0x04, [0x01]); // Clear
                 const textBytes = Array.from(new TextEncoder().encode(text));
-                await sendCommand(0x10, textBytes); // Send Text
-                await sendCommand(0x03, [0x01]); // Commit Page
-                await sendCommand(0x01, [0x02]); // End Job
-                log('Print commands sent.');
+                await sendCommand(0x10, textBytes); 
+                await sendCommand(0x03, [0x01]); // Commit
+                await sendCommand(0x01, [0x02]); // End
+                log('Commands sent.');
             } catch (err) {
                 showError('Print error: ' + err.message);
             }
